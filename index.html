@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>RESOURCE MAP – Tower Hamlets</title>
+
+  <!-- Fonts & Leaflet CSS -->
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;800&family=Roboto:wght@300;400&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+  <!-- Leaflet Routing Machine (OSRM) -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css" />
+
+  <!-- App styles -->
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- AUTH BRAND (centered above login) -->
+  <div id="authBrand" class="auth-brand" onclick="goHome()" title="Go to Login">
+    <img src="map-logo.png" alt="Resource Map logo" class="auth-brand-img" />
+    <span class="auth-brand-title">Resource Map</span>
+  </div>
+
+  <!-- Welcome / Auth area (centered) -->
+  <div id="welcomeContainer" class="centered-container">
+    <section id="loginSection" class="card active-card" aria-labelledby="loginHeading">
+      <h2 id="loginHeading">Login</h2>
+      <form id="loginForm" autocomplete="off">
+        <label for="loginName">Your Name</label>
+        <input id="loginName" type="text" required />
+
+        <label for="role">Role</label>
+        <select id="role" required>
+          <option value="user">User (Needer)</option>
+          <option value="helper">Helper</option>
+          <option value="admin">Admin (Council)</option>
+        </select>
+
+        <!-- Admin password (only when role=admin) -->
+        <div id="adminPasswordRow" style="display:none">
+          <label for="adminPassword">Admin Password</label>
+          <input id="adminPassword" type="password" placeholder="Enter admin password" />
+        </div>
+
+        <button type="submit" class="submit-btn">Login</button>
+      </form>
+      <p class="muted">Don't have an account? <button id="showRegisterBtn" class="link-btn">Register as Helper</button></p>
+    </section>
+
+    <section id="registerSection" class="card" aria-labelledby="registerHeading" style="display:none">
+      <h2 id="registerHeading">Register as Helper</h2>
+      <form id="registerForm" autocomplete="off">
+        <label for="regName">Your Name</label>
+        <input id="regName" type="text" required />
+        <label for="regAddress">Your Address</label>
+        <input id="regAddress" type="text" required />
+        <label for="regPhone">Your Phone</label>
+        <input id="regPhone" type="tel" required />
+        <!-- Removed: Initial Resource to Post -->
+        <button type="submit" class="submit-btn">Register</button>
+      </form>
+      <p class="muted">Already registered? <button id="showLoginBtn" class="link-btn">Login here</button></p>
+      <p id="registerStatus" class="muted" aria-live="polite"></p>
+    </section>
+  </div>
+
+  <!-- Main app container (hidden until login) -->
+  <div id="appContainer" class="app" style="display:none;">
+    <aside class="sidebar" aria-label="Main sidebar">
+      <div class="brand" onclick="goHome()" title="Go to Login">
+        <img src="map-logo.png" alt="Resource Map logo" class="brand-img" />
+        <span id="welcomeName" class="brand-welcome"></span>
+      </div>
+
+      <nav class="nav" aria-label="Navigation">
+        <button id="mapBtn" onclick="showSection('map')">View Map</button>
+        <button id="postBtn" onclick="showSection('post')" style="display:none">Post Resource</button>
+        <button id="historyBtn" onclick="showSection('history')">History</button>
+        <button id="notifyBtn" onclick="showSection('notifications')" style="display:none">Notifications</button>
+
+        <!-- Admin-only links -->
+        <button id="adminBtn" onclick="showSection('admin')" style="display:none">Admin Dashboard</button>
+        <button id="manageBtn" onclick="showSection('manage')" style="display:none">Manage Account</button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <small class="muted">© for the Community</small>
+      </div>
+    </aside>
+
+    <main class="main" aria-live="polite">
+      <div class="topbar">
+        <!-- Brand row inside the topbar (shown after login) -->
+        <div id="topbarBrand" class="topbar-brand" onclick="goHome()" title="Go to Login" style="display:none">
+          <img src="map-logo.png" alt="Resource Map logo" class="topbar-brand-img" />
+          <span class="topbar-brand-title">Resource Map</span>
+        </div>
+
+        <div class="topbar-inner">
+          <h2 class="muted">Supported by University For The Creative Arts.</h2>
+          <button id="logoutBtn" class="submit-btn" style="display:none">Logout</button>
+        </div>
+      </div>
+
+      <!-- Map section -->
+      <section id="map" class="section active">
+        <div class="map-header">
+          <img src="map-hero.png" class="map-header-img" alt="Map" />
+          <h2 id="mapRoleTitle">Resource Map</h2>
+        </div>
+
+        <!-- Map controls -->
+        <div class="map-controls">
+          <button id="locateBtn" class="map-control-btn" type="button" title="Recenter to my location">📍 Locate Me</button>
+        </div>
+
+        <div id="mapContainer"></div>
+        <p id="mapError" class="error" style="display:none">Map failed to load. Please check your internet connection.</p>
+        <div id="resourcesList" class="list"></div>
+      </section>
+
+      <!-- Post resource (helpers only) -->
+      <section id="post" class="section">
+        <h2>Post a Resource</h2>
+        <form id="resourceForm">
+          <label for="resourcePost">Resource to Post (e.g., Food)</label>
+          <input id="resourcePost" type="text" required />
+          <button type="submit" class="submit-btn">Post Resource</button>
+        </form>
+        <p id="locationStatus" class="muted"></p>
+      </section>
+
+      <!-- History -->
+      <section id="history" class="section">
+        <h2>Pickup History</h2>
+        <div id="historyList" class="list"></div>
+      </section>
+
+      <!-- Notifications (helpers see pickup requests here) -->
+      <section id="notifications" class="section">
+        <h2>Notifications</h2>
+        <div id="notificationList" class="list"></div>
+      </section>
+
+      <!-- Admin Dashboard -->
+      <section id="admin" class="section">
+        <h2>Admin Dashboard</h2>
+
+        <div class="admin-export-bar">
+          <button class="admin-export-btn" onclick="exportResourcesCSV()">⬇ Export Active Resources (CSV)</button>
+          <button class="admin-export-btn" onclick="exportRequestsCSV()">⬇ Export All Requests (CSV)</button>
+          <button class="admin-export-btn" onclick="exportHistoryCSV()">⬇ Export History (CSV)</button>
+        </div>
+
+        <div class="admin-export-bar">
+          <button class="admin-export-btn" onclick="clearNeederHistory()">🧹 Clear Needer History (Hide)</button>
+          <button class="admin-export-btn" onclick="clearHelperHistory()">🧹 Clear Helper History (Hide)</button>
+        </div>
+
+        <div class="admin-grid">
+          <div class="admin-card">
+            <h3>Posted Resources (Helpers)</h3>
+            <div id="adminResources" class="list"></div>
+          </div>
+
+          <div class="admin-card">
+            <h3>Pickup Requests (All)</h3>
+            <div id="adminRequests" class="list"></div>
+          </div>
+
+          <div class="admin-card">
+            <h3>Pickup History (Full)</h3>
+            <div id="adminHistory" class="list"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Manage Account -->
+      <section id="manage" class="section">
+        <h2>Manage Account</h2>
+        <div class="admin-card">
+          <form id="adminAccountForm" class="account-form" autocomplete="off">
+            <label for="adminUserField">Admin Username</label>
+            <input id="adminUserField" type="text" required />
+
+            <label for="adminPassField">New Password</label>
+            <input id="adminPassField" type="password" placeholder="Leave blank to keep current" />
+
+            <label for="adminPassConfirmField">Confirm Password</label>
+            <input id="adminPassConfirmField" type="password" placeholder="Repeat new password" />
+
+            <div class="account-actions">
+              <button type="submit" class="submit-btn">Save Changes</button>
+              <small id="adminAccountStatus" class="muted"></small>
+            </div>
+          </form>
+        </div>
+      </section>
+
+      <footer>
+        <small class="muted">Developed for The People</small>
+      </footer>
+    </main>
+  </div>
+
+  <!-- Leaflet -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <!-- Leaflet Routing Machine (OSRM) -->
+  <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.min.js"></script>
+
+  <!-- App logic -->
+  <script src="script.js"></script>
+</body>
+</html>
